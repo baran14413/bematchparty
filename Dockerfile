@@ -1,21 +1,29 @@
-# Use Node.js base image
-FROM node:20-alpine
+# Stage 1: Build
+FROM node:20-alpine AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Install 'serve' package to serve static files
-RUN npm install -g serve
-
-# Copy everything (except what's in .dockerignore if it existed)
-COPY . .
-
-# Build the web app (Static Export)
+# Install dependencies
+COPY package*.json ./
 RUN npm install
+
+# Copy source and build
+COPY . .
 RUN npx expo export --platform web
 
-# Expose port 8080 as required by Cloud Run
+# Stage 2: Runtime
+FROM node:20-slim
+
+WORKDIR /app
+
+# Install 'serve' globally
+RUN npm install -g serve
+
+# Copy ONLY the exported static files from builder
+COPY --from=builder /app/dist ./dist
+
+# Expose Cloud Run port
 EXPOSE 8080
 
-# Command to serve the 'dist' directory on port 8080
+# Serve the static files
 CMD ["serve", "-s", "dist", "-l", "8080"]
